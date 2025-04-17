@@ -1,10 +1,10 @@
 # yakuza_gmt_blender
- Blender Import/Export addon for Yakuza series GMT animation files. Can also import CMT camera animations. Supports Blender versions >= 2.93 and <= 3.2.
+Actively maintained version of Blender Import/Export addon for Yakuza series GMT animation files. Can also import CMT camera animations. Supports Blender versions >= 4.0.
  
 ***
  
 # Installing
-Download the [latest release](https://github.com/SutandoTsukai181/yakuza-gmt-blender/releases/latest) and install it in Blender. To do so, follow the instructions in the [official Blender manual](https://docs.blender.org/manual/en/latest/editors/preferences/addons.html) for installing add-ons, or follow the brief instructions below.
+Download the [latest release](https://github.com/Fronkln/yakuza-gmt-blender/releases/latest) and install it in Blender. To do so, follow the instructions in the [official Blender manual](https://docs.blender.org/manual/en/latest/editors/preferences/addons.html) for installing add-ons, or follow the brief instructions below.
 
 Open the `Edit` -> `Preferences` window from the menu bar, go to `Add-ons`, click on the `Install` button, and select the release zip you downloaded. Then, enable the script by checking the box next to it.
 
@@ -42,7 +42,6 @@ By using this tool, you agree to the following:
 **I absolutely cannot, without explicit permission from the original tool's author**
 - Use this tool or any content created using it in a **commercial project**.
 - Use this tool or any content created using it in a project, whether paid or free, that is being **monetized** in any form, using any monetization platform such as **PayPal** or **Patreon**.
-- Use this tool or any content created using it if it has been determined that I willingly used the **leaked**, unfinished, unstable build of this tool that was released without the author's permission in 2021.
 
 ### If you do not agree to any of these terms, then you are not allowed to use this tool.
 
