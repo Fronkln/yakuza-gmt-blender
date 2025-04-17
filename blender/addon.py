@@ -120,13 +120,16 @@ The animation will be interpolated from the current keyframe's state to the next
     setattr(bpy.types.PoseBone, 'pat1_left_hand', bpy.props.IntProperty(
         name='Left Hand', min=-1, max=25, description=pat_desc, default=-1))
     setattr(bpy.types.PoseBone, 'pat1_right_hand', bpy.props.IntProperty(
-        name='Right Hand', min=-1, max=25, description=pat_desc, default=-1))
+        name='Right Hand', min=-1, max=25, description=pat_desc, default=-1))   
+    setattr(bpy.types.PoseBone, 'pat1_face_animation', bpy.props.IntProperty(
+        name='Face', min=-1, max=100, description=pat_desc, default=-1))
 
     global types
     types = {
         'pattern_types': bpy.types.Scene,
         'pat1_left_hand': bpy.types.PoseBone,
         'pat1_right_hand': bpy.types.PoseBone,
+        'pat1_face_animation': bpy.types.PoseBone,
     }
 
     # Add a handler to change pattern curves interpolation to constant on each frame update

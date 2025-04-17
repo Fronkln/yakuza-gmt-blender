@@ -1353,7 +1353,7 @@ def register(bl_info):
     updater.private_token = None  # "tokenstring"
 
     # Choose your own username, must match website (not needed for GitLab).
-    updater.user = "SutandoTsukai181"
+    updater.user = "Fronkln"
 
     # Choose your own repository, must match git name for GitHUb and Bitbucket,
     # for GitLab use project ID (numbers only).
@@ -1362,7 +1362,7 @@ def register(bl_info):
     # updater.addon = # define at top of module, MUST be done first
 
     # Website for manual addon download, optional but recommended to set.
-    updater.website = "https://github.com/SutandoTsukai181/yakuza-gmt-blender/releases/latest"
+    updater.website = "https://github.com/Fronkln/yakuza-gmt-blender/releases/latest"
 
     # Addon subfolder path.
     # "sample/path/to/addon"

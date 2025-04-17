@@ -6,14 +6,14 @@ from .addon_updater_prefs import GMTUpdaterPreferences
 # Include the bl_info at the top level always
 bl_info = {
     "name": "Yakuza GMT File Import/Export",
-    "author": "SutandoTsukai181",
-    "version": (1, 1, 2),
-    "blender": (2, 93, 0),
+    "author": "SutandoTsukai181, Jhrino",
+    "version": (1, 1, 3),
+    "blender": (4, 3, 0),
     "location": "File > Import-Export",
     "description": "Import-Export Yakuza GMT Files",
     "warning": "",
     "doc_url": "https://github.com/SutandoTsukai181/yakuza-gmt-blender/wiki",
-    "tracker_url": "https://github.com/SutandoTsukai181/yakuza-gmt-blender/issues",
+    "tracker_url": "https://github.com/Fronkln/yakuza-gmt-blender/issues",
     "category": "Import-Export",
 }
 

@@ -38,6 +38,7 @@ class GMTPatternPanel(GMTPatternBasePanel, Panel):
         active_pose_bone = context.active_pose_bone
         layout.prop(active_pose_bone, 'pat1_left_hand')
         layout.prop(active_pose_bone, 'pat1_right_hand')
+        layout.prop(active_pose_bone, 'pat1_face_animation')
 
 
 class GMTPatternIndicesPanel(GMTPatternBasePanel, Panel):

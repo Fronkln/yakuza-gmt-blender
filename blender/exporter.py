@@ -377,6 +377,8 @@ class GMTExporter:
                 channel = GMTCurveChannel.LEFT_HAND
             elif 'right' in pat:
                 channel = GMTCurveChannel.RIGHT_HAND
+            elif 'face' in pat:
+                channel = GMTCurveChannel.FACE
             else:
                 channel = GMTCurveChannel(int(pat.split('_')[-1]))
 

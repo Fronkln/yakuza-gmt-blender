@@ -68,6 +68,19 @@ class ImportGMT(Operator, ImportHelper):
         default=False
     )
 
+    scale_object: BoolProperty(
+        name='Use Scale',
+        description='Scale the armature based on the height provided\n'
+                    'This can be useful on auth animations where characters have differing heights (the animation being offset differently because Haruka is 165cm in Yakuza 5 for example.)',
+        default=False,
+    )
+
+    object_scale: bpy.props.IntProperty(
+        name='Scale',
+        description='Object scale in centimeters',
+        default=185,
+    )
+
     def draw(self, context):
         layout = self.layout
 
@@ -76,6 +89,11 @@ class ImportGMT(Operator, ImportHelper):
 
         layout.prop(self, 'armature_name')
         layout.prop(self, 'merge_vector_curves')
+
+        layout.prop(self, 'scale_object')
+        object_scale = layout.row()
+        object_scale.prop(self, 'object_scale')
+        object_scale.enabled = self.scale_object
 
         is_auth_row = layout.row()
         is_auth_row.prop(self, 'is_auth')
@@ -283,6 +301,8 @@ class GMTImporter:
         self.context = context
         self.merge_vector_curves = import_settings.get('merge_vector_curves')
         self.is_auth = import_settings.get('is_auth')
+        self.scale_object = import_settings.get('scale_object')
+        self.object_scale = import_settings.get('object_scale')
 
     gmt: GMT
 
@@ -290,6 +310,16 @@ class GMTImporter:
         try:
             self.gmt = read_gmt(self.filepath)
             self.make_actions()
+
+            if(self.scale_object):
+                # Based on Yakuza 5
+                reference_height = 165.0
+                reference_scale = 0.890
+                scale_per_cm = 0.055
+
+                calculated_scale = reference_scale + (self.object_scale - reference_height) * scale_per_cm
+                self.context.active_object.scale = (calculated_scale,calculated_scale,calculated_scale)
+                
         except Exception as e:
             raise GMTError(f'{e}')
 
@@ -508,6 +538,9 @@ def get_data_path_from_curve_type(context: bpy.context, curve_type: GMTCurveType
 
             pat_tuple = (-32_768, 32_767, 0, f'pat1_unk_{channel}', f'Pat1 Unk {channel}', "Unknown pattern property")
             pat_string = '|'.join(map(lambda x: str(x), pat_tuple))
+
+            if channel == GMTCurveChannel.FACE:
+                return 'pat1_face_animation'
 
             # The type will be created, but it won't be added to the types dict (to be deleted) here
             # That will be taken care of in the unregister function of the addon
