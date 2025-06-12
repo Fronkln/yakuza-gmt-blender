@@ -313,11 +313,17 @@ class GMTImporter:
 
             if(self.scale_object):
                 # Based on Yakuza 5
-                reference_height = 165.0
-                reference_scale = 0.890
-                scale_per_cm = 0.055
+                reference_height = 185.0
+                reference_scale = 1
 
-                calculated_scale = reference_scale + (self.object_scale - reference_height) * scale_per_cm
+                reference_height2 = 165.0
+                reference_scale2 = 0.890
+
+                m = (reference_scale2 - reference_scale) / (reference_height2 - reference_height)
+                b = reference_scale - m * reference_height
+                scale = y = m * self.object_scale + b
+
+                calculated_scale =  scale
                 self.context.active_object.scale = (calculated_scale,calculated_scale,calculated_scale)
                 
         except Exception as e:

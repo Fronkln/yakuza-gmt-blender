@@ -3,4 +3,4 @@
 	url = https://github.com/SutandoTsukai181/Yakuza-PAR-py
 [submodule "gmt_lib"]
 	path = gmt_lib
-	url = https://github.com/SutandoTsukai181/gmt_lib
+	url = https://github.com/Fronkln/gmt_lib
