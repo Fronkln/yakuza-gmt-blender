@@ -71,7 +71,7 @@ class ImportGMT(Operator, ImportHelper):
     scale_object: BoolProperty(
         name='Use Scale',
         description='Scale the armature based on the height provided\n'
-                    'This can be useful on auth animations where characters have differing heights (the animation being offset differently because Haruka is 165cm in Yakuza 5 for example.)',
+                    'This can be useful on Yakuza 5 and below for auth animations where characters have differing heights (the animation being offset differently because Haruka is 165cm in Yakuza 5 for example.)',
         default=False,
     )
 
@@ -84,8 +84,8 @@ class ImportGMT(Operator, ImportHelper):
     
     import_as_path: BoolProperty(
         name='Import As Path Animation',
-        description='Import the GMT as path animation. Applied to root bone\n'
-                    'This can be useful animations that dont directly animate an object, but a path',
+        description='Import the GMT as path animation. Applied to root bone of selected armature.\n'
+                    'This can be useful for animations that dont directly animate a model, but a path (which has no bones)',
         default=False,
     )
 
