@@ -329,7 +329,11 @@ class GMTExporter:
 
         # Try splitting vector from center
         if self.split_vector_curves and self.gmt_game in ['ISHIN', 'DE']:
-            split_vector(anm.bones.get('center_c_n'), anm.bones.get('vector_c_n'), GMTVectorVersion.DRAGON_VECTOR if (
+            centerBone = anm.bones.get('center_c_n')
+            vectorBone = anm.bones.get('vector_c_n')
+
+            if(centerBone != None and vectorBone != None):
+                split_vector(centerBone, vectorBone, GMTVectorVersion.DRAGON_VECTOR if (
                 self.gmt_game == 'DE') else GMTVectorVersion.OLD_VECTOR, self.is_auth)
 
         return anm

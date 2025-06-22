@@ -81,6 +81,15 @@ class ImportGMT(Operator, ImportHelper):
         default=185,
     )
 
+    
+    import_as_path: BoolProperty(
+        name='Import As Path Animation',
+        description='Import the GMT as path animation. Applied to root bone\n'
+                    'This can be useful animations that dont directly animate an object, but a path',
+        default=False,
+    )
+
+
     def draw(self, context):
         layout = self.layout
 
@@ -89,7 +98,6 @@ class ImportGMT(Operator, ImportHelper):
 
         layout.prop(self, 'armature_name')
         layout.prop(self, 'merge_vector_curves')
-
         layout.prop(self, 'scale_object')
         object_scale = layout.row()
         object_scale.prop(self, 'object_scale')
@@ -98,6 +106,8 @@ class ImportGMT(Operator, ImportHelper):
         is_auth_row = layout.row()
         is_auth_row.prop(self, 'is_auth')
         is_auth_row.enabled = self.merge_vector_curves
+
+        layout.prop(self, 'import_as_path')
 
     def execute(self, context):
         import time
@@ -303,6 +313,7 @@ class GMTImporter:
         self.is_auth = import_settings.get('is_auth')
         self.scale_object = import_settings.get('scale_object')
         self.object_scale = import_settings.get('object_scale')
+        self.import_as_path = import_settings.get('import_as_path')
 
     gmt: GMT
 
@@ -339,6 +350,7 @@ class GMTImporter:
 
         end_frame = 1
         frame_rate = 30
+
         for anm in self.gmt.animation_list:
             anm_bone_props = dict() if (self.gmt.is_face_gmt and anm.is_face_anm()) else bone_props
 
@@ -351,11 +363,16 @@ class GMTImporter:
             action = ao.animation_data.action
 
             bones: Dict[str, GMTBone] = dict()
-            for bone_name in anm.bones:
-                if bone_name in ao.pose.bones:
-                    bones[bone_name] = anm.bones[bone_name]
-                else:
-                    print(f'WARNING: Skipped bone: "{bone_name}"')
+
+            # Import the first "bone" of the animation. into the root bone of selected object
+            if self.import_as_path == False:
+                for bone_name in anm.bones:
+                    if bone_name in ao.pose.bones:
+                        bones[bone_name] = anm.bones[bone_name]
+                    else:
+                        print(f'WARNING: Skipped bone: "{bone_name}"')
+            else:
+                bones[ao.pose.bones[0].name] = anm.bones[next(iter(anm.bones))]
 
             # Convert curves early to allow for easier GMT modification before creating FCurves
             for bone_name in bones:
