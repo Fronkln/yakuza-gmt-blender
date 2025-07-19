@@ -395,8 +395,16 @@ class GMTExporter:
         # Patterns (unk and face)
         pattern_unk_curves = []
         pattern_face_curves = []
+        
         for pat in pat_other_curves:
-            pat_type = GMTCurveType.PATTERN_UNK if ('pat2' in pat) else GMTCurveType.PATTERN_FACE
+            pat_type = 0
+
+            #6 when in a face bone
+            if("face" in bone_name):
+                pat_type = GMTCurveType.PATTERN_FACE 
+            else:
+                pat_type = GMTCurveType.PATTERN_UNK if ('pat2' in pat) else GMTCurveType.PATTERN_FACE
+
             channel = GMTCurveChannel(int(pat.split('_')[-1]))
 
             curve = self.make_curve([pat_other_curves[pat]], pat_type, channel, bone_name)
