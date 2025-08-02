@@ -12,6 +12,7 @@ from ..gmt_lib import *
 from ..gmt_lib.gmt.gmt_reader import read_cmt, read_ifa
 from ..gmt_lib.gmt.structure.cmt import *
 from ..gmt_lib.gmt.structure.ifa import *
+from ..gmt_lib.gmt.structure.enums.gmt_enum import OEDEFaceTarget
 from .bone_props import GMTBlenderBoneProps, get_edit_bones_props
 from .coordinate_converter import (convert_cmt_anm_to_blender,
                                    convert_gmt_curve_to_blender,
@@ -571,12 +572,22 @@ def get_data_path_from_curve_type(context: bpy.context, curve_type: GMTCurveType
     elif curve_type in (GMTCurveType.PATTERN_UNK, GMTCurveType.PATTERN_FACE):
         channel = curve_channel.value
 
-        # Both PATTERN_UNK and PATTERN_FACE use the same format, so just make the difference here
-        pat_num = 2 if GMTCurveType.PATTERN_UNK else 3
+        pat_string = ""
 
-        pat_tuple = (-128, 127, 0, f'pat{pat_num}_unk_{channel}',
-                     f'Pat{pat_num} Unk {channel}', "Unknown pattern property")
-        pat_string = '|'.join(map(lambda x: str(x), pat_tuple))
+        #Face Target
+        if(curve_type == GMTCurveType.PATTERN_FACE):
+            pat_num = 2 if GMTCurveType.PATTERN_UNK else 3
+
+            pat_tuple = (-128, 127, 0, f'pat{pat_num}_unk_{channel}',
+                        f'Face Target {get_flag_name(OEDEFaceTarget, channel)}', "Face target animation")
+            pat_string = '|'.join(map(lambda x: str(x), pat_tuple))
+        else:
+            # Both PATTERN_UNK and PATTERN_FACE use the same format, so just make the difference here
+            pat_num = 2 if GMTCurveType.PATTERN_UNK else 3
+
+            pat_tuple = (-128, 127, 0, f'pat{pat_num}_unk_{channel}',
+                        f'Pat{pat_num} Unk {channel}', "Unknown pattern property")
+            pat_string = '|'.join(map(lambda x: str(x), pat_tuple))
 
         return create_pose_bone_type(context, pat_string)
     else:
@@ -609,3 +620,11 @@ def create_pose_bone_type(context: bpy.context, pat_string: str):
 
 def menu_func_import(self, context):
     self.layout.operator(ImportGMT.bl_idname, text='Yakuza Animation (.gmt/.cmt/.ifa)')
+
+
+def get_flag_name(enum_class, value):
+    try:
+        flag = enum_class(value)
+        return flag.name or str(value)
+    except ValueError:
+        return str(value)
