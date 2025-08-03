@@ -171,6 +171,102 @@ class ImportGMT(Operator, ImportHelper):
                     return 0
 
         return "No armature found to add animation to"
+    
+class ImportFaceTargetGMT(Operator, ImportHelper):
+    """Loads a Face Target GMT file into blender"""
+    bl_idname = "import_face_scene.gmt"
+    bl_label = "Import Yakuza Face Target GMT"
+
+    filter_glob: StringProperty(default="*.gmt;", options={"HIDDEN"})
+
+    def armature_callback(self, context):
+        items = []
+        ao = context.active_object
+        ao_name = ao.name
+
+        if ao and ao.type == 'ARMATURE':
+            # Add the selected armature first so that it's the default value
+            items.append((ao_name, ao_name, ""))
+
+        for a in [arm for arm in bpy.data.objects if arm.type == 'ARMATURE' and arm.name != ao_name]:
+            items.append((a.name, a.name, ""))
+        return items
+
+    armature_name: EnumProperty(
+        items=armature_callback,
+        name='Target Armature',
+        description='The armature to use as a base for importing the animation. '
+                    'This armature should be from a GMD from the same game as the animation'
+    )
+
+
+
+    def draw(self, context):
+        layout = self.layout
+
+        layout.use_property_split = True
+        layout.use_property_decorate = True  # No animation.
+
+        layout.prop(self, 'armature_name')
+
+    def execute(self, context):
+        import time
+
+        try:
+            arm = self.check_armature(context)
+            if isinstance(arm, str):
+                raise GMTError(arm)
+
+            importer_cls = GMTFaceTargetImporter
+
+            start_time = time.time()
+            importer = importer_cls(context, self.filepath, self.as_keywords(ignore=("filter_glob",)))
+            importer.read()
+
+            elapsed_s = "{:.2f}s".format(time.time() - start_time)
+            print("Import finished in " + elapsed_s)
+
+            self.report({"INFO"}, f"Finished importing {basename(self.filepath)}")
+            return {'FINISHED'}
+        except GMTError as error:
+            print("Catching Error")
+            self.report({"ERROR"}, str(error))
+
+        return {'CANCELLED'}
+
+    def check_armature(self, context: bpy.context):
+        """Sets the active object to be the armature chosen by the user"""
+
+        if self.armature_name:
+            armature = bpy.data.objects.get(self.armature_name)
+            if armature:
+                context.view_layer.objects.active = armature
+                return 0
+
+        # check the active object first
+        ao = context.active_object
+        if ao and ao.type == 'ARMATURE' and ao.data.bones[:]:
+            return 0
+
+        # if the active object isn't a valid armature, get its collection and check
+
+        if ao:
+            collection = ao.users_collection[0]
+        else:
+            collection = context.view_layer.active_layer_collection
+
+        if collection and collection.name != 'Master Collection':
+            meshObjects = [o for o in bpy.data.collections[collection.name].objects
+                           if o.data in bpy.data.meshes[:] and o.find_armature()]
+
+            armatures = [a.find_armature() for a in meshObjects]
+            if meshObjects:
+                armature = armatures[0]
+                if armature.data.bones[:]:
+                    context.view_layer.objects.active = armature
+                    return 0
+
+        return "No armature found to add animation to"
 
 
 def setup_armature(ao: bpy.types.Object) -> Dict[str, GMTBlenderBoneProps]:
@@ -322,6 +418,17 @@ class GMTImporter:
         try:
             self.gmt = read_gmt(self.filepath)
             self.make_actions()
+            ftarget_result = apply_face_target_anim_to_shape_keys(self.context.active_object)
+
+            action = self.context.active_object.animation_data.action
+
+            # Face targets will be animated through shape keys. We no longer need this data.
+            if(ftarget_result == True):
+                to_remove = [fc for fc in action.fcurves if "pat2_unk" in fc.data_path]
+
+                # Remove them safely
+                for fc in to_remove:
+                    action.fcurves.remove(fc)
 
             if(self.scale_object):
                 # Based on Yakuza 5
@@ -402,6 +509,73 @@ class GMTImporter:
         self.context.scene.frame_start = 0
         self.context.scene.frame_current = 0
         self.context.scene.frame_end = int(end_frame)
+
+class GMTFaceTargetImporter:
+    def __init__(self, context: bpy.context, filepath, import_settings: Dict):
+        self.filepath = filepath
+        self.context = context
+        
+    gmt: GMT
+
+    def read(self):
+        try:
+            self.gmt = read_gmt(self.filepath)
+            self.make_actions()
+                
+        except Exception as e:
+            raise GMTError(f'{e}')           
+
+    def make_actions(self):
+        print(f'Importing file: {self.gmt.name}')
+
+        ao = self.context.active_object
+        bone_props = setup_armature(ao)
+
+        vector_version = self.gmt.vector_version
+
+        end_frame = 1
+        frame_rate = 30
+
+        for anm in self.gmt.animation_list:
+            anm_bone_props = dict() if (self.gmt.is_face_gmt and anm.is_face_anm()) else bone_props
+
+            end_frame = max(end_frame, anm.end_frame)
+            frame_rate = anm.frame_rate
+
+            act_name = f'{anm.name}[{self.gmt.name}]'
+            action = bpy.data.actions.new(name=act_name)
+
+            bones: Dict[str, GMTBone] = dict()
+
+            # Import the first "bone" of the animation. into the root bone of selected object
+            for bone_name in anm.bones:
+                if bone_name in ao.pose.bones:
+                    bones[bone_name] = anm.bones[bone_name]
+                else:
+                    print(f'WARNING: Skipped bone: "{bone_name}"')
+
+            # Convert curves early to allow for easier GMT modification before creating FCurves
+            for bone_name in bones:
+                for curve in bones[bone_name].curves:
+                    convert_gmt_curve_to_blender(curve)
+
+            for bone_name in bones:
+                group = action.groups.new(bone_name)
+                print(f'Importing ActionGroup: {group.name}')
+
+                for curve in bones[bone_name].curves:
+                    import_curve(self.context, curve, bone_name, action, group.name, anm_bone_props)
+
+            for pbone in ao.pose.bones:
+                # Clear location, rotation, scale
+                pbone.location = (0.0, 0.0, 0.0)
+                pbone.rotation_quaternion = (1.0, 0.0, 0.0, 0.0)  # Identity quaternion
+                pbone.rotation_euler = (0.0, 0.0, 0.0)             # Also reset euler just in case
+                pbone.scale = (1.0, 1.0, 1.0)
+
+            create_shape_key_from_first_frame(ao, action)
+            bpy.data.actions.remove(action)
+           
 
 
 def merge_vector(center_bone: GMTBone, vector_bone: GMTBone, vector_version: GMTVectorVersion, is_auth: bool):
@@ -618,8 +792,44 @@ def create_pose_bone_type(context: bpy.context, pat_string: str):
     return prop_name
 
 
+def create_shape_key_from_first_frame(armature_obj, action):
+    action_name = action.name
+    bpy.context.scene.frame_set(int(action.frame_range[0]))
+
+    # Temporarily assign the action
+    if not armature_obj.animation_data:
+        armature_obj.animation_data_create()
+    armature_obj.animation_data.action = action
+
+    face_mesh = get_ideal_shape_key_mesh(armature_obj)
+
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+
+    if(face_mesh != None):
+        eval_obj = face_mesh.evaluated_get(depsgraph)
+        mesh_data = eval_obj.to_mesh()
+
+        # Add Basis if needed
+        if not face_mesh.data.shape_keys:
+            face_mesh.shape_key_add(name="Basis")
+
+        # Add shape key with the action name
+        shape_name = clean_face_target_name(action_name)
+        shape_key = face_mesh.shape_key_add(name=shape_name, from_mix=False)
+        shape_key.slider_max = -0.5
+        shape_key.slider_max = 0.5
+
+        for i, vert in enumerate(mesh_data.vertices):
+            shape_key.data[i].co = vert.co
+
+        eval_obj.to_mesh_clear()
+        print(f"Added shape key '{action_name}' to '{face_mesh.name}'")      
+
+
+
 def menu_func_import(self, context):
     self.layout.operator(ImportGMT.bl_idname, text='Yakuza Animation (.gmt/.cmt/.ifa)')
+    self.layout.operator(ImportFaceTargetGMT.bl_idname, text='Yakuza Face Target Animation (f_res .gmt)')
 
 
 def get_flag_name(enum_class, value):
@@ -628,3 +838,103 @@ def get_flag_name(enum_class, value):
         return flag.name or str(value)
     except ValueError:
         return str(value)
+    
+def clean_face_target_name(text):
+    no_prefix = text.split('_', 1)[1] if '_' in text else text
+    return no_prefix.split('[', 1)[0]   
+
+def apply_face_target_anim_to_shape_keys(ao):
+    is_any_shape_key_applied = False
+
+    face_bone = ao.data.bones.get("face_c_n")
+
+    if(not face_bone):
+        return False
+    
+    fcurves_to_remove = []
+
+    action = ao.animation_data.action if ao.animation_data else None
+    if action:
+        for fcurve in action.fcurves:
+            if 'pose.bones["face_c_n"]' in fcurve.data_path:
+                prefix = 'pose.bones["face_c_n"].'
+                clean_path = fcurve.data_path[len(prefix):]
+
+                if(clean_path.startswith("pat2_unk")):
+                    shape_key_target_id = clean_path.replace("pat2_unk_", "")
+                    shape_key_target = OEDEFaceTarget(int(shape_key_target_id)).name
+
+                    meshes = [
+                        obj for obj in bpy.data.objects
+                        if obj.type == 'MESH' and any(
+                            mod.type == 'ARMATURE' and mod.object == ao for mod in obj.modifiers
+                        )
+                    ]
+
+                    for mesh_obj in meshes:
+                        print(f"🔎 Checking mesh: {mesh_obj.name}")
+
+                        # 🎭 Skip if shape key does not exist
+                        if not mesh_obj.data.shape_keys or shape_key_target not in mesh_obj.data.shape_keys.key_blocks:
+                            print(f"⚠️ Shape key '{shape_key_target}' not found on '{mesh_obj.name}' — skipping.")
+                            continue
+
+                        # 🎯 Get the shape key data block
+                        shape_keys = mesh_obj.data.shape_keys
+
+                        # 🎭 Make sure it has animation data
+                        if not shape_keys.animation_data:
+                            shape_keys.animation_data_create()
+                        if not shape_keys.animation_data.action:
+                            shape_keys.animation_data.action = bpy.data.actions.new(name=f"{mesh_obj.name}_ShapeKeyAction")
+
+                        # 🧼 Remove old FCurve(s)
+                        shape_key_path = f'key_blocks["{shape_key_target}"].value'
+                        existing = [fc for fc in shape_keys.animation_data.action.fcurves if fc.data_path == shape_key_path]
+                        for fc in existing:
+                            shape_keys.animation_data.action.fcurves.remove(fc)
+
+                        # ➕ Add new FCurve for shape key value
+                        new_fcurve = shape_keys.animation_data.action.fcurves.new(
+                            data_path=shape_key_path
+                        )
+
+                        # 🧪 Insert remapped keyframes
+                        for kp in fcurve.keyframe_points:
+                            frame = kp.co.x
+                            byte_val = kp.co.y
+                            shape_val = byte_to_half_float(byte_val)
+
+                            new_kp = new_fcurve.keyframe_points.insert(frame, shape_val, options={'FAST'})
+                            new_kp.interpolation = kp.interpolation
+
+                        fcurves_to_remove.append(fcurve)
+                        print(f"✅ Applied shape key curve to '{mesh_obj.name}'")
+                        is_any_shape_key_applied = True
+
+                    print(f"🎯 Curve: {shape_key_target} {shape_key_target_id} [Index: {fcurve.array_index}]")
+                    for keyframe in fcurve.keyframe_points:
+                        print(f"  Frame {keyframe.co.x:.0f}: Value {keyframe.co.y:.6f}")                  
+    else:
+        print("⚠️ No action assigned to the armature.")
+
+    return is_any_shape_key_applied
+
+def byte_to_half_float(value):
+    return (value / 127.0) * 0.5
+
+def get_ideal_shape_key_mesh(ao):
+     # Get all mesh objects influenced by this armature
+    meshes = [
+        obj for obj in bpy.data.objects
+        if obj.type == 'MESH' and any(mod.type == 'ARMATURE' and mod.object == ao for mod in obj.modifiers)
+    ]
+
+    # Try to find one with "face" in the name
+    face_mesh = next((obj for obj in meshes if "face" in obj.name.lower()), None)
+
+    if(face_mesh == None):
+        if(meshes):
+            face_mesh = meshes[0] 
+
+    return face_mesh  

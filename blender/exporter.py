@@ -17,6 +17,7 @@ from .coordinate_converter import (convert_cmt_anm_from_blender,
                                    pattern2_from_blender,
                                    transform_location_from_blender,
                                    transform_rotation_from_blender)
+from ..gmt_lib.gmt.structure.enums.gmt_enum import OEDEFaceTarget
 from .error import GMTError
 
 
@@ -338,6 +339,8 @@ class GMTExporter:
 
         return anm
 
+
+
     def make_bone(self, bone_name: str, channels: List[FCurve]) -> GMTBone:
         bone = GMTBone(bone_name)
 
@@ -419,6 +422,52 @@ class GMTExporter:
 
         if len(pattern_face_curves):
             bone.patterns_face = pattern_face_curves
+
+
+        # Export any face target animation
+        # If there is any mesh with shape keys on them we had removed the pat2 animation data and moved it to shape keys earlier. We are now just gonna generate them
+        if(bone_name == "face_c_n"):
+           shape_target_mesh = get_ideal_mesh_for_shape_key_export(self.context.active_object) 
+           if shape_target_mesh != None and shape_target_mesh.data.shape_keys and shape_target_mesh.data.shape_keys.animation_data:
+                action = shape_target_mesh.data.shape_keys.animation_data.action
+
+                shape_key_fcurves = []
+
+                if action:
+                    # Shape key fcurves typically start with 'key_blocks["ShapeKeyName"]'
+                    shape_key_fcurves = [
+                        fc for fc in action.fcurves 
+                        if fc.data_path.startswith('key_blocks["')
+                    ]
+
+                original_values = {}
+
+                for fcurve in shape_key_fcurves:
+                    if all(-0.5 <= kp.co[1] <= 0.5 for kp in fcurve.keyframe_points):
+                        original_values[fcurve] = [kp.co[1] for kp in fcurve.keyframe_points]
+                        for kp in fcurve.keyframe_points:
+                            kp.co[1] = adjust_range(kp.co[1], -0.5, 0.5, -127, 127)
+                        fcurve.update()
+
+                import re
+                for fcurve in shape_key_fcurves:
+                    prefix = 'pose.bones["face_c_n"].'
+                    shape_name = re.search(r'key_blocks\["(.+?)"\]', fcurve.data_path).group(1)
+
+                    shape_key_target = OEDEFaceTarget[shape_name]
+
+                    curve = self.make_curve(shape_key_fcurves, GMTCurveType.PATTERN_FACE, shape_key_target.value, "face_c_n")
+                    pattern_face_curves.append(curve)
+
+                    print("Exported face target " + shape_name)
+
+                for fcurve, values in original_values.items():
+                    for kp, original_val in zip(fcurve.keyframe_points, values):
+                        kp.co[1] = original_val
+                    fcurve.update()
+
+                bone.patterns_face = pattern_face_curves
+
 
         return bone
 
@@ -529,6 +578,7 @@ class GMTExporter:
 
             converted_values = list(map(lambda s, e: [int(s), int(e)], *pattern1_from_blender(converted_values)))
         elif curve_type in (GMTCurveType.PATTERN_UNK, GMTCurveType.PATTERN_FACE):
+            print("gugppies")
             converted_values = list(map(lambda v: [int(v)], pattern2_from_blender(channel_values[0])))
 
         # Create the GMTCurve after finalizing all changes to the FCurves
@@ -759,5 +809,18 @@ def split_vector(center_bone: GMTBone, vector_bone: GMTBone, vector_version: GMT
             center_bone.rotation = GMTCurve.new_rotation_curve()
 
 
+def get_ideal_mesh_for_shape_key_export(ao):
+    target_mesh = None
+    for obj in ao.children:
+        if obj.type == 'MESH' and obj.data.shape_keys is not None:
+            target_mesh = obj
+            break 
+
+    return target_mesh  
+
 def menu_func_export(self, context):
     self.layout.operator(ExportGMT.bl_idname, text='Yakuza Animation (.gmt/.cmt/.ifa)')
+
+
+def adjust_range(value, old_min, old_max, new_min, new_max):
+    return new_min + (value - old_min) * (new_max - new_min) / (old_max - old_min)

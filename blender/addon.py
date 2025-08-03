@@ -5,6 +5,7 @@ from bpy.types import AddonPreferences
 
 from .exporter import ExportGMT, menu_func_export
 from .importer import ImportGMT, create_pose_bone_type, menu_func_import
+from .importer import ImportFaceTargetGMT
 from .pattern import GMTPatternIndicesPanel, GMTPatternPanel
 
 # from .pattern import apply_patterns
@@ -71,6 +72,7 @@ class StringPropertyGroup(bpy.types.PropertyGroup):
 
 classes = (
     ImportGMT,
+    ImportFaceTargetGMT,
     ExportGMT,
     GMTPatternPanel,
     GMTPatternIndicesPanel,
