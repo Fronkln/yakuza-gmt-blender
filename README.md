@@ -16,7 +16,7 @@ The addon includes an auto-update checker that is enabled by default. It will ch
 ***
 
 # Usage
-Check the [wiki](https://github.com/SutandoTsukai181/yakuza-gmt-blender/wiki) for guides and usage info.
+Check the [wiki](https://github.com/Fronkln/yakuza-gmt-blender/wiki) for guides and usage info.
 
 ***
 
