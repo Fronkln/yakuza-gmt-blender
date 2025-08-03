@@ -793,6 +793,10 @@ def create_pose_bone_type(context: bpy.context, pat_string: str):
 
 
 def create_shape_key_from_first_frame(armature_obj, action):
+
+    #Some face targets have face_c_n bones in them which messes up import
+    remove_fcurves_for_bone(action, "face_c_n")
+
     action_name = action.name
     bpy.context.scene.frame_set(int(action.frame_range[0]))
 
@@ -938,3 +942,14 @@ def get_ideal_shape_key_mesh(ao):
             face_mesh = meshes[0] 
 
     return face_mesh  
+
+def remove_fcurves_for_bone(action, bone_name):
+    if not action:
+        return
+
+    # Collect F-Curves to remove
+    to_remove = [fcu for fcu in action.fcurves
+                 if fcu.data_path.startswith(f'pose.bones["{bone_name}"]')]
+
+    for fcu in to_remove:
+        action.fcurves.remove(fcu)
