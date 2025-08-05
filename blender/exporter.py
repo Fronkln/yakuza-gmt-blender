@@ -456,7 +456,7 @@ class GMTExporter:
 
                     shape_key_target = OEDEFaceTarget[shape_name]
 
-                    curve = self.make_curve(shape_key_fcurves, GMTCurveType.PATTERN_FACE, shape_key_target.value, "face_c_n")
+                    curve = self.make_curve([fcurve], GMTCurveType.PATTERN_FACE, shape_key_target.value, "face_c_n")
                     pattern_face_curves.append(curve)
 
                     print("Exported face target " + shape_name)

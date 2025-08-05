@@ -748,20 +748,11 @@ def get_data_path_from_curve_type(context: bpy.context, curve_type: GMTCurveType
 
         pat_string = ""
 
-        #Face Target
-        if(curve_type == GMTCurveType.PATTERN_FACE):
-            pat_num = 2 if GMTCurveType.PATTERN_UNK else 3
+        pat_num = 2 if GMTCurveType.PATTERN_UNK else 3
 
-            pat_tuple = (-128, 127, 0, f'pat{pat_num}_unk_{channel}',
+        pat_tuple = (-128, 127, 0, f'pat{pat_num}_unk_{channel}',
                         f'Face Target {get_flag_name(OEDEFaceTarget, channel)}', "Face target animation")
-            pat_string = '|'.join(map(lambda x: str(x), pat_tuple))
-        else:
-            # Both PATTERN_UNK and PATTERN_FACE use the same format, so just make the difference here
-            pat_num = 2 if GMTCurveType.PATTERN_UNK else 3
-
-            pat_tuple = (-128, 127, 0, f'pat{pat_num}_unk_{channel}',
-                        f'Pat{pat_num} Unk {channel}', "Unknown pattern property")
-            pat_string = '|'.join(map(lambda x: str(x), pat_tuple))
+        pat_string = '|'.join(map(lambda x: str(x), pat_tuple))
 
         return create_pose_bone_type(context, pat_string)
     else:
@@ -820,7 +811,7 @@ def create_shape_key_from_first_frame(armature_obj, action):
         # Add shape key with the action name
         shape_name = clean_face_target_name(action_name)
         shape_key = face_mesh.shape_key_add(name=shape_name, from_mix=False)
-        shape_key.slider_max = -0.5
+        shape_key.slider_min = -0.5
         shape_key.slider_max = 0.5
 
         for i, vert in enumerate(mesh_data.vertices):
@@ -907,7 +898,7 @@ def apply_face_target_anim_to_shape_keys(ao):
                         for kp in fcurve.keyframe_points:
                             frame = kp.co.x
                             byte_val = kp.co.y
-                            shape_val = byte_to_half_float(byte_val)
+                            shape_val = adjust_range(byte_val, -127, 127, -0.5, 0.5) #byte_to_half_float(byte_val)
 
                             new_kp = new_fcurve.keyframe_points.insert(frame, shape_val, options={'FAST'})
                             new_kp.interpolation = kp.interpolation
@@ -926,6 +917,9 @@ def apply_face_target_anim_to_shape_keys(ao):
 
 def byte_to_half_float(value):
     return (value / 127.0) * 0.5
+
+def adjust_range(value, old_min, old_max, new_min, new_max):
+    return new_min + (value - old_min) * (new_max - new_min) / (old_max - old_min)
 
 def get_ideal_shape_key_mesh(ao):
      # Get all mesh objects influenced by this armature
