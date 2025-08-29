@@ -124,6 +124,7 @@ class ExportGMT(Operator, ExportHelper):
                ('YAKUZA5', 'Yakuza 5', ""),
                ('ISHIN', 'Yakuza 0, Kiwami, Ishin, FOTNS', ""),
                ('DE', 'Dragon Engine (Yakuza 6, Kiwami 2, ...)', ""),
+               ('DE2', 'Dragon Engine 2.0 (Gaiden, Pirates in Hawaii, ...)', ""),
                ],
         name="Game Preset",
         description="Target game which the exported GMT will be used in",
@@ -200,7 +201,7 @@ class ExportGMT(Operator, ExportHelper):
             is_auth_row.prop(self, 'is_auth')
 
             is_auth_row.enabled = self.split_vector_curves and self.gmt_game == 'ISHIN'
-            vector_col.enabled = self.gmt_game in ['ISHIN', 'DE']
+            vector_col.enabled = self.gmt_game in ['ISHIN', 'DE', 'DE2']
 
             # Update file and anm name if both are empty
             if self.gmt_file_name == self.gmt_anm_name == "":
@@ -318,7 +319,7 @@ class GMTExporter:
         # Framerate only affects motion GMTs (not auth/hacts), and end frame is unused
         anm = GMTAnimation(self.gmt_anm_name, 30.0, 0)
 
-        if self.gmt.version == GMTVersion.ISHIN and self.gmt_game != 'DE':
+        if self.gmt.version == GMTVersion.ISHIN and not 'DE' in self.gmt_game:
             # Add scale bone for Y0/K1
             scale_bone = GMTBone('scale')
             scale_bone.location = GMTCurve.new_location_curve()
@@ -329,13 +330,13 @@ class GMTExporter:
             anm.bones[group.name] = self.make_bone(group.name, group.channels)
 
         # Try splitting vector from center
-        if self.split_vector_curves and self.gmt_game in ['ISHIN', 'DE']:
+        if self.split_vector_curves and self.gmt_game in ['ISHIN', 'DE', 'DE2']:
             centerBone = anm.bones.get('center_c_n')
             vectorBone = anm.bones.get('vector_c_n')
 
             if(centerBone != None and vectorBone != None):
                 split_vector(centerBone, vectorBone, GMTVectorVersion.DRAGON_VECTOR if (
-                self.gmt_game == 'DE') else GMTVectorVersion.OLD_VECTOR, self.is_auth)
+                'DE' in self.gmt_game) else GMTVectorVersion.OLD_VECTOR, self.is_auth)
 
         return anm
 
@@ -572,13 +573,12 @@ class GMTExporter:
         elif curve_type == GMTCurveType.PATTERN_HAND:
             converted_values = channel_values[0]
 
-            if self.gmt_game != 'DE':
+            if not 'DE' in self.gmt_game:
                 # Prevent pattern numbers larger than old engine max to be exported
                 converted_values = self.correct_pattern(converted_values)
 
             converted_values = list(map(lambda s, e: [int(s), int(e)], *pattern1_from_blender(converted_values)))
         elif curve_type in (GMTCurveType.PATTERN_UNK, GMTCurveType.PATTERN_FACE):
-            print("gugppies")
             converted_values = list(map(lambda v: [int(v)], pattern2_from_blender(channel_values[0])))
 
         # Create the GMTCurve after finalizing all changes to the FCurves
