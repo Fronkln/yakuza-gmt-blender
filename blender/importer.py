@@ -431,18 +431,8 @@ class GMTImporter:
                     action.fcurves.remove(fc)
 
             if(self.scale_object):
-                # Based on Yakuza 5
-                reference_height = 185.0
-                reference_scale = 1
-
-                reference_height2 = 165.0
-                reference_scale2 = 0.890
-
-                m = (reference_scale2 - reference_scale) / (reference_height2 - reference_height)
-                b = reference_scale - m * reference_height
-                scale = y = m * self.object_scale + b
-
-                calculated_scale =  scale
+                # Linear mapping between (165 -> 0.890) and (185 -> 1.000)
+                calculated_scale = scale_height(self.object_scale)
                 self.context.active_object.scale = (calculated_scale,calculated_scale,calculated_scale)
                 
         except Exception as e:
@@ -509,6 +499,20 @@ class GMTImporter:
         self.context.scene.frame_start = 0
         self.context.scene.frame_current = 0
         self.context.scene.frame_end = int(end_frame)
+
+
+# This is really bad. but the inconsistent height scaling has left me with no choice but to bully ChatGPT to solve this crisis.
+def scale_height(measure):
+    x1, y1 = 165, 0.890
+    x2, y2 = 175, 0.940
+    x3, y3 = 185, 1.000
+
+    if measure <= x2:  # left segment (165 -> 175)
+        slope = (y2 - y1) / (x2 - x1)  # 0.005 per unit
+        return y1 + (measure - x1) * slope
+    else:  # right segment (175 -> 185)
+        slope = (y3 - y2) / (x3 - x2)  # 0.006 per unit
+        return y2 + (measure - x2) * slope
 
 class GMTFaceTargetImporter:
     def __init__(self, context: bpy.context, filepath, import_settings: Dict):
