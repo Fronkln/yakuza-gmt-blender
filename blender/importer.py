@@ -90,6 +90,18 @@ class ImportGMT(Operator, ImportHelper):
         default=False,
     )
 
+    additive: BoolProperty(
+        name='Combine',
+        description='Import the animation on top of existing one, not replacing it, this will convert the animation data into NLA strips.',
+        default=False,
+    )
+
+    additive_adjust_len: BoolProperty(
+        name='Adjust End Frame',
+        description='Increase end frame when animation is combined',
+        default=True,
+    )
+
 
     def draw(self, context):
         layout = self.layout
@@ -109,6 +121,11 @@ class ImportGMT(Operator, ImportHelper):
         is_auth_row.enabled = self.merge_vector_curves
 
         layout.prop(self, 'import_as_path')
+        layout.prop(self, 'additive')
+
+        adjust_combine_len = layout.row()
+        adjust_combine_len.prop(self, 'additive_adjust_len')
+        adjust_combine_len.enabled = self.additive
 
     def execute(self, context):
         import time
@@ -328,6 +345,8 @@ class CMTImporter:
     def __init__(self, context: bpy.context, filepath, import_settings: Dict):
         self.filepath = filepath
         self.context = context
+        self.combine = import_settings.get("additive")
+        self.combine_adjust_len = import_settings.get("additive_adjust_len")
 
     cmt: CMT
 
@@ -362,11 +381,23 @@ class CMTImporter:
         self.context.scene.render.fps = int(frame_rate)
         self.context.scene.frame_start = 0
         self.context.scene.frame_current = 0
-        self.context.scene.frame_end = frame_count
+
+        if self.combine:
+            if self.combine_adjust_len:
+                self.context.scene.frame_end += frame_count 
+        else:
+            self.context.scene.frame_end = frame_count   
 
     def make_action(self, anm: CMTAnimation, action_name):
+
+        if self.combine and self.camera.animation_data.action != None:
+            action = self.camera.animation_data.action
+            nla_track = action.nla_tracks.new()
+            nla_strip = nla_track.strips.new(action.name, int(action.frame_range[0]), action)            
+            self.camera.animation_data.action = None   
+
         action = self.camera.animation_data.action = bpy.data.actions.new(name=action_name)
-        group = action.groups.new("Camera")
+        group = action.groups.new("Camera")     
 
         # Convert the CMT frames before importing anything
         convert_cmt_anm_to_blender(anm, self.camera.data)
@@ -401,6 +432,22 @@ class CMTImporter:
             import_curve('data.clip_start', clip_starts)
             import_curve('data.clip_end', clip_ends)
 
+        if(self.combine):
+            hadAnimBefore = len(self.camera.animation_data.nla_tracks) > 0
+
+        if(self.combine):
+            if(hadAnimBefore):
+                nla_track = self.camera.animation_data.nla_tracks[0]
+                strips = [strip for track in self.camera.animation_data.nla_tracks for strip in track.strips]
+                last_strip = max(strips, key=lambda s: s.frame_end)
+                nla_strip = nla_track.strips.new(action.name, int(last_strip.frame_end), action)
+            else:
+                nla_track = self.camera.animation_data.nla_tracks.new()
+                nla_strip = nla_track.strips.new(action.name, int(action.frame_range[0]), action)                 
+            
+            self.camera.animation_data.action = None
+
+
 
 class GMTImporter:
     def __init__(self, context: bpy.context, filepath, import_settings: Dict):
@@ -411,6 +458,8 @@ class GMTImporter:
         self.scale_object = import_settings.get('scale_object')
         self.object_scale = import_settings.get('object_scale')
         self.import_as_path = import_settings.get('import_as_path')
+        self.combine = import_settings.get("additive")
+        self.combine_adjust_len = import_settings.get("additive_adjust_len")
 
     gmt: GMT
 
@@ -446,6 +495,12 @@ class GMTImporter:
 
         vector_version = self.gmt.vector_version
 
+        if self.combine and ao.animation_data.action != None:
+            action = ao.animation_data.action
+            nla_track = action.nla_tracks.new()
+            nla_strip = nla_track.strips.new(action.name, int(action.frame_range[0]), action)            
+            ao.animation_data.action = None
+
         end_frame = 1
         frame_rate = 30
 
@@ -457,8 +512,11 @@ class GMTImporter:
 
             act_name = f'{anm.name}[{self.gmt.name}]'
 
-            ao.animation_data.action = bpy.data.actions.new(name=act_name)
-            action = ao.animation_data.action
+            if(self.combine):
+                hadAnimBefore = len(ao.animation_data.nla_tracks) > 0
+
+            action = bpy.data.actions.new(name=act_name)
+            ao.animation_data.action = action
 
             bones: Dict[str, GMTBone] = dict()
 
@@ -480,7 +538,11 @@ class GMTImporter:
             # Try merging vector into center
             if self.merge_vector_curves:
                 # Bone names are constant because vector does not exist pre-Ishin
-                merge_vector(bones.get('center_c_n'), bones.get('vector_c_n'), vector_version, self.is_auth)
+                center_bone = bones.get('center_c_n')
+                vector_bone = bones.get('vector_c_n')
+
+                if(center_bone != None and vector_bone != None):
+                    merge_vector(center_bone, vector_bone, vector_version, self.is_auth)
 
             for bone_name in bones:
                 group = action.groups.new(bone_name)
@@ -488,6 +550,18 @@ class GMTImporter:
 
                 for curve in bones[bone_name].curves:
                     import_curve(self.context, curve, bone_name, action, group.name, anm_bone_props)
+
+            if(self.combine):
+                if(hadAnimBefore):
+                    nla_track = ao.animation_data.nla_tracks[0]
+                    strips = [strip for track in ao.animation_data.nla_tracks for strip in track.strips]
+                    last_strip = max(strips, key=lambda s: s.frame_end)
+                    nla_strip = nla_track.strips.new(action.name, int(last_strip.frame_end), action)
+                else:
+                    nla_track = ao.animation_data.nla_tracks.new()
+                    nla_strip = nla_track.strips.new(action.name, int(action.frame_range[0]), action)                 
+            
+                ao.animation_data.action = None
 
         # If pattern previewing is to be enabled later, this should be moved to the addon register function instead
         # Although that may require bone.par path in order to import the patterns with the basic skeleton GMDs
@@ -498,7 +572,12 @@ class GMTImporter:
         self.context.scene.render.fps = int(frame_rate)
         self.context.scene.frame_start = 0
         self.context.scene.frame_current = 0
-        self.context.scene.frame_end = int(end_frame)
+
+        if self.combine:
+            if(self.combine_adjust_len):
+                self.context.scene.frame_end += int(end_frame)   
+        else:
+            self.context.scene.frame_end = int(end_frame)       
 
 
 # This is really bad. but the inconsistent height scaling has left me with no choice but to bully ChatGPT to solve this crisis.
