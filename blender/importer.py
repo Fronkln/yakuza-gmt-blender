@@ -392,7 +392,7 @@ class CMTImporter:
 
         if self.combine and self.camera.animation_data.action != None:
             action = self.camera.animation_data.action
-            nla_track = action.nla_tracks.new()
+            nla_track = self.camera.animation_data.nla_tracks.new()
             nla_strip = nla_track.strips.new(action.name, int(action.frame_range[0]), action)            
             self.camera.animation_data.action = None   
 
