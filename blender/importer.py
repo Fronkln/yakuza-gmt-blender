@@ -528,7 +528,7 @@ class GMTImporter:
 
         if self.combine and ao.animation_data.action != None:
             action = ao.animation_data.action
-            nla_track = action.nla_tracks.new()
+            nla_track = ao.animation_data.nla_tracks.new()
             nla_strip = nla_track.strips.new(action.name, int(action.frame_range[0]), action)            
             ao.animation_data.action = None
 
