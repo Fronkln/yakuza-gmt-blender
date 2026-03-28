@@ -392,7 +392,7 @@ class CMTImporter:
 
         if self.combine and self.camera.animation_data.action != None:
             action = self.camera.animation_data.action
-            nla_track = self.camera.animation_data.nla_tracks.new()
+            nla_track = action.nla_tracks.new()
             nla_strip = nla_track.strips.new(action.name, int(action.frame_range[0]), action)            
             self.camera.animation_data.action = None   
 
@@ -874,7 +874,7 @@ def create_shape_key_from_first_frame(armature_obj, action):
     action_name = action.name
     bpy.context.scene.frame_set(int(action.frame_range[0]))
 
-    # Temporarily assign the action
+    #Temporarily assign the action
     if not armature_obj.animation_data:
         armature_obj.animation_data_create()
     armature_obj.animation_data.action = action
@@ -887,15 +887,15 @@ def create_shape_key_from_first_frame(armature_obj, action):
         eval_obj = face_mesh.evaluated_get(depsgraph)
         mesh_data = eval_obj.to_mesh()
 
-        # Add Basis if needed
+        #Add Basis if needed
         if not face_mesh.data.shape_keys:
             face_mesh.shape_key_add(name="Basis")
 
-        # Add shape key with the action name
+        #Add shape key with the action name
         shape_name = clean_face_target_name(action_name)
         shape_key = face_mesh.shape_key_add(name=shape_name, from_mix=False)
-        shape_key.slider_min = -0.5
-        shape_key.slider_max = 0.5
+        shape_key.slider_min = 0.0
+        shape_key.slider_max = 1.0
 
         for i, vert in enumerate(mesh_data.vertices):
             shape_key.data[i].co = vert.co
@@ -952,49 +952,49 @@ def apply_face_target_anim_to_shape_keys(ao):
                     for mesh_obj in meshes:
                         print(f"🔎 Checking mesh: {mesh_obj.name}")
 
-                        # 🎭 Skip if shape key does not exist
+                        #Skip if shape key does not exist
                         if not mesh_obj.data.shape_keys or shape_key_target not in mesh_obj.data.shape_keys.key_blocks:
                             print(f"⚠️ Shape key '{shape_key_target}' not found on '{mesh_obj.name}' — skipping.")
                             continue
 
-                        # 🎯 Get the shape key data block
+                        #Get the shape key data block
                         shape_keys = mesh_obj.data.shape_keys
 
-                        # 🎭 Make sure it has animation data
+                        #Make sure it has animation data
                         if not shape_keys.animation_data:
                             shape_keys.animation_data_create()
                         if not shape_keys.animation_data.action:
                             shape_keys.animation_data.action = bpy.data.actions.new(name=f"{mesh_obj.name}_ShapeKeyAction")
 
-                        # 🧼 Remove old FCurve(s)
+                        #Remove old FCurve(s)
                         shape_key_path = f'key_blocks["{shape_key_target}"].value'
                         existing = [fc for fc in shape_keys.animation_data.action.fcurves if fc.data_path == shape_key_path]
                         for fc in existing:
                             shape_keys.animation_data.action.fcurves.remove(fc)
 
-                        # ➕ Add new FCurve for shape key value
+                        #Add new FCurve for shape key value
                         new_fcurve = shape_keys.animation_data.action.fcurves.new(
                             data_path=shape_key_path
                         )
 
-                        # 🧪 Insert remapped keyframes
+                        #Insert remapped keyframes
                         for kp in fcurve.keyframe_points:
                             frame = kp.co.x
                             byte_val = kp.co.y
-                            shape_val = adjust_range(byte_val, -127, 127, -0.5, 0.5) #byte_to_half_float(byte_val)
+                            shape_val = adjust_range(abs(byte_val), 0, 255, 0.0, 1.0) #byte_to_half_float(byte_val)
 
                             new_kp = new_fcurve.keyframe_points.insert(frame, shape_val, options={'FAST'})
                             new_kp.interpolation = kp.interpolation
 
                         fcurves_to_remove.append(fcurve)
-                        print(f"✅ Applied shape key curve to '{mesh_obj.name}'")
+                        print(f"Applied shape key curve to '{mesh_obj.name}'")
                         is_any_shape_key_applied = True
 
-                    print(f"🎯 Curve: {shape_key_target} {shape_key_target_id} [Index: {fcurve.array_index}]")
+                    print(f"Curve: {shape_key_target} {shape_key_target_id} [Index: {fcurve.array_index}]")
                     for keyframe in fcurve.keyframe_points:
                         print(f"  Frame {keyframe.co.x:.0f}: Value {keyframe.co.y:.6f}")                  
     else:
-        print("⚠️ No action assigned to the armature.")
+        print("No action assigned to the armature.")
 
     return is_any_shape_key_applied
 

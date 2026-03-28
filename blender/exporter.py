@@ -447,7 +447,7 @@ class GMTExporter:
                     if all(-0.5 <= kp.co[1] <= 0.5 for kp in fcurve.keyframe_points):
                         original_values[fcurve] = [kp.co[1] for kp in fcurve.keyframe_points]
                         for kp in fcurve.keyframe_points:
-                            kp.co[1] = adjust_range(kp.co[1], -0.5, 0.5, -127, 127)
+                            kp.co[1] = kp.co[1] * 255.0 #adjust_range(kp.co[1], 0.0, 0.5, -127, 127)
                         fcurve.update()
 
                 import re
