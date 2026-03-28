@@ -1,5 +1,5 @@
 from copy import deepcopy
-from os.path import basename
+from os.path import basename, dirname, join
 from typing import Dict
 
 import bpy
@@ -29,7 +29,9 @@ class ImportGMT(Operator, ImportHelper):
     """Loads a GMT file into blender"""
     bl_idname = "import_scene.gmt"
     bl_label = "Import Yakuza GMT"
-
+    files: bpy.props.CollectionProperty(
+        type=bpy.types.OperatorFileListElement
+    )
     filter_glob: StringProperty(default="*.gmt;*.cmt;*.ifa", options={"HIDDEN"})
 
     def armature_callback(self, context):
@@ -141,8 +143,19 @@ class ImportGMT(Operator, ImportHelper):
                 importer_cls = IFAImporter if self.filepath.endswith('.ifa') else GMTImporter
 
             start_time = time.time()
-            importer = importer_cls(context, self.filepath, self.as_keywords(ignore=("filter_glob",)))
-            importer.read()
+
+            folder = dirname(self.filepath)
+
+            file_list = [self.filepath]
+
+            if self.files:
+                file_list = [join(folder, f.name) for f in self.files]
+
+            file_list.sort()
+
+            for path in file_list:
+                importer = importer_cls(context, path, self.as_keywords(ignore=("filter_glob",)))
+                importer.read()
 
             elapsed_s = "{:.2f}s".format(time.time() - start_time)
             print("Import finished in " + elapsed_s)
@@ -237,8 +250,19 @@ class ImportFaceTargetGMT(Operator, ImportHelper):
             importer_cls = GMTFaceTargetImporter
 
             start_time = time.time()
-            importer = importer_cls(context, self.filepath, self.as_keywords(ignore=("filter_glob",)))
-            importer.read()
+
+            folder = dirname(self.filepath)
+
+            file_list = [self.filepath]
+
+            if self.files:
+                file_list = [join(folder, f.name) for f in self.files]
+
+            file_list.sort()
+
+            for path in file_list:
+                importer = importer_cls(context, path, self.as_keywords(ignore=("filter_glob",)))
+                importer.read()
 
             elapsed_s = "{:.2f}s".format(time.time() - start_time)
             print("Import finished in " + elapsed_s)
@@ -355,12 +379,19 @@ class CMTImporter:
         self.animate_camera()
 
     def animate_camera(self):
-        self.camera = self.context.scene.camera
+        obj = self.context.active_object
+
+        if obj and obj.type == 'CAMERA':
+            self.camera = obj
+            self.context.scene.camera = obj
+        else:
+            self.camera = self.context.scene.camera
 
         if not self.camera:
             camera_data = bpy.data.cameras.new(name='Camera')
             self.camera = bpy.data.objects.new('Camera', camera_data)
             self.context.scene.collection.objects.link(self.camera)
+            self.context.scene.camera = self.camera
 
         if not self.camera.animation_data:
             self.camera.animation_data_create()
