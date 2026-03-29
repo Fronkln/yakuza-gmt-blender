@@ -895,7 +895,7 @@ def create_shape_key_from_first_frame(armature_obj, action):
         shape_name = clean_face_target_name(action_name)
         shape_key = face_mesh.shape_key_add(name=shape_name, from_mix=False)
         shape_key.slider_min = 0.0
-        shape_key.slider_max = 1.0
+        shape_key.slider_max = 0.5
 
         for i, vert in enumerate(mesh_data.vertices):
             shape_key.data[i].co = vert.co
@@ -982,7 +982,7 @@ def apply_face_target_anim_to_shape_keys(ao):
                             frame = kp.co.x
                             byte_val = kp.co.y
                             shape_val = adjust_range(abs(byte_val), 0, 255, 0.0, 1.0) #byte_to_half_float(byte_val)
-
+                            
                             new_kp = new_fcurve.keyframe_points.insert(frame, shape_val, options={'FAST'})
                             new_kp.interpolation = kp.interpolation
 
