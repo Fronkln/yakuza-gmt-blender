@@ -7,7 +7,7 @@ from .exporter import ExportGMT, menu_func_export
 from .importer import ImportGMT, create_pose_bone_type, menu_func_import
 from .importer import ImportFaceTargetGMT
 from .pattern import GMTPatternIndicesPanel, GMTPatternPanel
-
+from .coordinate_converter import get_action_fcurves
 # from .pattern import apply_patterns
 
 
@@ -85,7 +85,7 @@ classes = (
 # Currently unused, since pattern previewing is disabled
 def change_interpolation(scene):
     if bpy.context.active_object and bpy.context.active_object.animation_data:
-        for f in bpy.context.active_object.animation_data.action.fcurves:
+        for f in get_action_fcurves(bpy.context.active_object.animation_data.action):
             if 'pat' in f.data_path:
                 for k in f.keyframe_points:
                     k.interpolation = 'CONSTANT'

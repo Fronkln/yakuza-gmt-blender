@@ -12,11 +12,12 @@ from ..gmt_lib.gmt.gmt_writer import write_cmt_to_file, write_ifa_to_file
 from ..gmt_lib.gmt.structure.cmt import *
 from ..gmt_lib.gmt.structure.ifa import *
 from .bone_props import GMTBlenderBoneProps, get_edit_bones_props
-from .coordinate_converter import (convert_cmt_anm_from_blender,
+from .coordinate_converter import (convert_cmt_anm_from_blender, get_action_groups,
                                    pattern1_from_blender,
                                    pattern2_from_blender,
                                    transform_location_from_blender,
-                                   transform_rotation_from_blender)
+                                   transform_rotation_from_blender,
+                                   get_action_fcurves)
 from ..gmt_lib.gmt.structure.enums.gmt_enum import OEDEFaceTarget
 from .error import GMTError
 
@@ -326,7 +327,7 @@ class GMTExporter:
             scale_bone.rotation = GMTCurve.new_rotation_curve()
             anm.bones['scale'] = scale_bone
 
-        for group in action.groups.values():
+        for group in get_action_groups(action).values():
             anm.bones[group.name] = self.make_bone(group.name, group.channels)
 
         # Try splitting vector from center
@@ -437,7 +438,7 @@ class GMTExporter:
                 if action:
                     # Shape key fcurves typically start with 'key_blocks["ShapeKeyName"]'
                     shape_key_fcurves = [
-                        fc for fc in action.fcurves 
+                        fc for fc in get_action_fcurves(action) 
                         if fc.data_path.startswith('key_blocks["')
                     ]
 
@@ -629,8 +630,8 @@ class CMTExporter:
         # Combined max frame range
         frame_count = 1 + int(max(action.frame_range[1], cam_action.frame_range[1] if cam_action else 0))
 
-        loc_curves = [action.fcurves.find('location', index=x) for x in range(3)]
-        rot_curves = [action.fcurves.find('rotation_quaternion', index=x) for x in range(4)]
+        loc_curves = [get_action_fcurves(action).find('location', index=x) for x in range(3)]
+        rot_curves = [get_action_fcurves(action).find('rotation_quaternion', index=x) for x in range(4)]
 
         loc_list = self.export_fcurves(loc_curves, 'location', frame_count)
         rot_list = self.export_fcurves(rot_curves, 'rotation_quaternion', frame_count)
@@ -638,8 +639,8 @@ class CMTExporter:
         data_values = dict.fromkeys(['lens', 'dof.focus_distance', 'clip_start', 'clip_end'])
 
         for datapath in data_values:
-            curve = action.fcurves.find(f'data.{datapath}')
-            cam_curve = cam_action and cam_action.fcurves.find(datapath)
+            curve = get_action_fcurves(action).find(f'data.{datapath}')
+            cam_curve = cam_action and get_action_fcurves(cam_action).find(datapath)
 
             if self.use_camera_keyframes and cam_curve:
                 if curve:
@@ -738,7 +739,7 @@ class IFAExporter(GMTExporter):
             raise GMTError('Action not found')
 
         bone_list = list()
-        for group in [x for x in action.groups if x.name in self.face_children]:
+        for group in [x for x in get_action_groups(action) if x.name in self.face_children]:
             gmt_bone = self.make_bone(group.name, group.channels)
 
             has_location = gmt_bone.location and len(gmt_bone.location.keyframes)

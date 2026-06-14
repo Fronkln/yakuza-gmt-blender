@@ -1,7 +1,7 @@
 from math import atan, tan
 from typing import Dict, List, Tuple
 
-from bpy.types import Camera
+from bpy.types import Object, Camera, Action, FCurve
 from mathutils import Matrix, Quaternion, Vector
 
 from ..gmt_lib import *
@@ -179,3 +179,42 @@ def transform_rotation_from_blender(bone_props: Dict[str, GMTBlenderBoneProps], 
     post_quat = rot.inverted() @ parent_rot @ rot_local
 
     return list(map(lambda x: rot_from_blender(pre_quat @ x @ post_quat), values))
+
+# https://developer.blender.org/docs/release_notes/4.4/upgrading/slotted_actions/
+def ensure_action_channelbag(action : Action, id_type : str = "OBJECT", index: int = -1) -> FCurve:
+    if not action.layers:
+        action.layers.new(name="Base Layer")
+    if not action.layers[0].strips:
+        action.layers[0].strips.new(type='KEYFRAME')
+    if not action.slots:
+        action.slots.new(id_type=id_type, name="Base Slot")
+    return action.layers[0].strips[0].channelbag(action.slots[0], ensure=True)
+
+def get_action_fcurves(action : Action, id_type : str = "OBJECT", index: int = -1) -> FCurve:
+    if getattr(action, 'fcurves', None) is not None:
+        # Legacy path
+        return action.fcurves
+    else:
+        # Blender 5.0+
+        cbag = ensure_action_channelbag(action, id_type, index)
+        return cbag.fcurves
+
+def get_action_groups(action : Action, id_type : str = "OBJECT", index: int = -1) -> FCurve:
+    if getattr(action, 'groups', None) is not None:
+        # Legacy path
+        return action.groups
+    else:
+        # Blender 5.0+
+        cbag = ensure_action_channelbag(action, id_type, index)
+        return cbag.groups
+
+def assign_object_action(object: Object, action: Action):
+    assert object.animation_data
+    object.animation_data.action = action
+    # 5.0+ path. See also ensure_action_channelbag - this attempts to use the Base Slot we'd create here
+    if hasattr(action, 'slots') and len(action.slots) == 1:
+        object.animation_data.action_slot = action.slots[0]
+    return action
+
+def get_enum_search_op_name(wm_name: str):
+    return f"search.{wm_name}"

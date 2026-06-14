@@ -18,7 +18,10 @@ from .coordinate_converter import (convert_cmt_anm_to_blender,
                                    convert_gmt_curve_to_blender,
                                    pattern1_to_blender, pattern2_to_blender,
                                    transform_location_to_blender,
-                                   transform_rotation_to_blender)
+                                   transform_rotation_to_blender,
+                                   get_action_fcurves,
+                                   get_action_groups,
+                                   assign_object_action)
 from .error import GMTError
 
 # from .pattern import make_pattern_action
@@ -324,11 +327,11 @@ class IFAImporter:
 
         bone_props = setup_armature(ao)
 
-        action = ao.animation_data.action = bpy.data.actions.new(name=f'{basename(self.filepath)}')
+        action = bpy.data.actions.new(name=f'{basename(self.filepath)}')
 
         # Instead of rewriting the curve importing functions, we can just convert the IFA bones to GMT curves
         for bone in self.ifa.bone_list:
-            group = action.groups.new(bone.name)
+            group = get_action_groups(action).new(bone.name)
 
             for curve_values, curve_type in zip((bone.location, bone.rotation), (GMTCurveType.LOCATION, GMTCurveType.ROTATION)):
                 curve = GMTCurve(curve_type)
@@ -336,7 +339,9 @@ class IFAImporter:
 
                 convert_gmt_curve_to_blender(curve)
                 import_curve(self.context, curve, bone.name, action, group.name, bone_props)
-
+        
+        assign_object_action(ao, action)
+        
         self.context.scene.frame_start = 0
         self.context.scene.frame_current = 0
 
@@ -396,8 +401,8 @@ class CMTImporter:
             nla_strip = nla_track.strips.new(action.name, int(action.frame_range[0]), action)            
             self.camera.animation_data.action = None   
 
-        action = self.camera.animation_data.action = bpy.data.actions.new(name=action_name)
-        group = action.groups.new("Camera")     
+        action = bpy.data.actions.new(name=action_name)
+        group = get_action_groups(action).new("Camera")     
 
         # Convert the CMT frames before importing anything
         convert_cmt_anm_to_blender(anm, self.camera.data)
@@ -407,7 +412,8 @@ class CMTImporter:
             values = enumerate(zip(*values)) if hasattr(values[0], '__iter__') else [(-1, values)]
 
             for i, values_channel in values:
-                fcurve = action.fcurves.new(data_path=data_path, index=i, action_group=group.name)
+                fcurve = get_action_fcurves(action).new(data_path=data_path, index=i)
+                fcurve.group = group
                 fcurve.keyframe_points.add(len(values_channel))
                 fcurve.keyframe_points.foreach_set('co', [x for co in zip(
                     range(len(values_channel)), values_channel) for x in co])
@@ -432,6 +438,8 @@ class CMTImporter:
             import_curve('data.clip_start', clip_starts)
             import_curve('data.clip_end', clip_ends)
 
+        assign_object_action(self.camera, action)
+        
         if(self.combine):
             hadAnimBefore = len(self.camera.animation_data.nla_tracks) > 0
 
@@ -473,11 +481,11 @@ class GMTImporter:
 
             # Face targets will be animated through shape keys. We no longer need this data.
             if(ftarget_result == True):
-                to_remove = [fc for fc in action.fcurves if "pat2_unk" in fc.data_path]
+                to_remove = [fc for fc in get_action_fcurves(action) if "pat2_unk" in fc.data_path]
 
                 # Remove them safely
                 for fc in to_remove:
-                    action.fcurves.remove(fc)
+                    get_action_fcurves(action).remove(fc)
 
             if(self.scale_object):
                 # Linear mapping between (165 -> 0.890) and (185 -> 1.000)
@@ -515,9 +523,7 @@ class GMTImporter:
             if(self.combine):
                 hadAnimBefore = len(ao.animation_data.nla_tracks) > 0
 
-            action = bpy.data.actions.new(name=act_name)
-            ao.animation_data.action = action
-
+            action = bpy.data.actions.new(name=act_name)            
             bones: Dict[str, GMTBone] = dict()
 
             # Import the first "bone" of the animation. into the root bone of selected object
@@ -545,12 +551,14 @@ class GMTImporter:
                     merge_vector(center_bone, vector_bone, vector_version, self.is_auth)
 
             for bone_name in bones:
-                group = action.groups.new(bone_name)
+                group = get_action_groups(action).new(bone_name)
                 print(f'Importing ActionGroup: {group.name}')
 
                 for curve in bones[bone_name].curves:
                     import_curve(self.context, curve, bone_name, action, group.name, anm_bone_props)
-
+            
+            assign_object_action(ao, action)
+            
             if(self.combine):
                 if(hadAnimBefore):
                     nla_track = ao.animation_data.nla_tracks[0]
@@ -643,7 +651,7 @@ class GMTFaceTargetImporter:
                     convert_gmt_curve_to_blender(curve)
 
             for bone_name in bones:
-                group = action.groups.new(bone_name)
+                group = get_action_groups(action).new(bone_name)
                 print(f'Importing ActionGroup: {group.name}')
 
                 for curve in bones[bone_name].curves:
@@ -789,9 +797,11 @@ def import_curve(context: bpy.context, curve: GMTCurve, bone_name: str, action: 
     else:
         return
 
+    group = get_action_groups(action).get(group_name)
     for i, values_channel in enumerate(zip(*values)):
-        fcurve = action.fcurves.new(data_path=(
-            f'pose.bones["{bone_name}"].{data_path}'), index=i, action_group=group_name)
+        fcurve = get_action_fcurves(action).new(data_path=(
+            f'pose.bones["{bone_name}"].{data_path}'), index=i)
+        fcurve.group = group
         fcurve.keyframe_points.add(len(frames))
         fcurve.keyframe_points.foreach_set('co', [x for co in zip(frames, values_channel) for x in co])
 
@@ -877,7 +887,7 @@ def create_shape_key_from_first_frame(armature_obj, action):
     #Temporarily assign the action
     if not armature_obj.animation_data:
         armature_obj.animation_data_create()
-    armature_obj.animation_data.action = action
+    assign_object_action(armature_obj, action)
 
     face_mesh = get_ideal_shape_key_mesh(armature_obj)
 
@@ -933,7 +943,7 @@ def apply_face_target_anim_to_shape_keys(ao):
 
     action = ao.animation_data.action if ao.animation_data else None
     if action:
-        for fcurve in action.fcurves:
+        for fcurve in get_action_fcurves(action):
             if 'pose.bones["face_c_n"]' in fcurve.data_path:
                 prefix = 'pose.bones["face_c_n"].'
                 clean_path = fcurve.data_path[len(prefix):]
@@ -964,16 +974,16 @@ def apply_face_target_anim_to_shape_keys(ao):
                         if not shape_keys.animation_data:
                             shape_keys.animation_data_create()
                         if not shape_keys.animation_data.action:
-                            shape_keys.animation_data.action = bpy.data.actions.new(name=f"{mesh_obj.name}_ShapeKeyAction")
+                            action = bpy.data.actions.new(name=f"{mesh_obj.name}_ShapeKeyAction")
 
                         #Remove old FCurve(s)
                         shape_key_path = f'key_blocks["{shape_key_target}"].value'
-                        existing = [fc for fc in shape_keys.animation_data.action.fcurves if fc.data_path == shape_key_path]
+                        existing = [fc for fc in get_action_fcurves(action) if fc.data_path == shape_key_path]
                         for fc in existing:
-                            shape_keys.animation_data.action.fcurves.remove(fc)
+                            get_action_fcurves(action).remove(fc)
 
                         #Add new FCurve for shape key value
-                        new_fcurve = shape_keys.animation_data.action.fcurves.new(
+                        new_fcurve = get_action_fcurves(shape_keys.animation_data.action).new(
                             data_path=shape_key_path
                         )
 
@@ -987,6 +997,7 @@ def apply_face_target_anim_to_shape_keys(ao):
                             new_kp.interpolation = kp.interpolation
 
                         fcurves_to_remove.append(fcurve)
+                        assign_object_action(shape_keys, action)
                         print(f"Applied shape key curve to '{mesh_obj.name}'")
                         is_any_shape_key_applied = True
 
@@ -1025,8 +1036,6 @@ def remove_fcurves_for_bone(action, bone_name):
         return
 
     # Collect F-Curves to remove
-    to_remove = [fcu for fcu in action.fcurves
-                 if fcu.data_path.startswith(f'pose.bones["{bone_name}"]')]
-
+    to_remove = [fcu for fcu in get_action_fcurves(action) if fcu.data_path.startswith(f'pose.bones["{bone_name}"]')]
     for fcu in to_remove:
-        action.fcurves.remove(fcu)
+        get_action_fcurves(action).remove(fcu)
